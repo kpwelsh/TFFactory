@@ -1,0 +1,2 @@
+class TFFactoryException(Exception):
+    pass
