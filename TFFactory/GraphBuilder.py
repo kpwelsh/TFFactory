@@ -87,6 +87,7 @@ def Deserialize(value):
     return (v, False)
 
 def NewGraph():
+    global ID_COUNTER, CURRENT_GRAPH
     ID_COUNTER = defaultdict(int)
     CURRENT_GRAPH = {}
     return

@@ -201,16 +201,12 @@ class Factory:
 
         return obj
 
-    def placeHolder(self):
-        raise TFFactoryException('Place holder variable was not fed during execution.')
-
     def functionMap(self):
         map = {}
         ops = {}
 
         ops['fileSource'] = lambda FilePath, NRows : self.readFile(FilePath, ',', NRows)
         ops['parser'] = self.splitFile
-        ops['placeHolder'] = self.placeHolder
 
         map['ops'] = ops
         return map
