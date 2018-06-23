@@ -15,8 +15,7 @@ class DataLoader(object):
             else:
                 self.FileCache[filePath] = []
         with open(filePath, 'r') as fin:
-            i = 0
-            for line in fin:
+            for i, line in enumerate(fin):
                 row = line.strip('\n')
                 if caching:
                     self.FileCache[filePath].append(row)
@@ -26,7 +25,6 @@ class DataLoader(object):
                     r = np.random.randint(0, i+1)
                     if r < nRows:
                         data[r] = row
-                i+=1
         self.FileCache[filePath] = data
         return data
 
