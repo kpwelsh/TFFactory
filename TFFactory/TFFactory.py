@@ -1,48 +1,21 @@
 import tensorflow
 import numpy as np
 import json
-from TFFactoryException import TFFactoryException
-from DataLoader import DataLoader
+from .TFFactoryException import TFFactoryException
+from .DataLoader import DataLoader
+import TFFactory.GraphBuilder as GB
 
-class JSONNode:
-    def __init__(self, id, type, params):
-        self.ID = str(id)
-        self.type = str(type)
-        self.Inputs = {}
-        for name, value in params.items():
-            if isinstance(value, JSONNode):
-                self.Inputs[name] = {'value' : value.ID, 'type' : 'ref'}
-            else:
-                self.Inputs[name] = {'value' : json.loads(json.dumps(value)), 'type' : 'dynamic'}
-        return
-    
-    def asDict(self):
-        d = {
-            self.ID : {
-                'type' : self.type,
-                'inputs' : self.Inputs
-            }
-        }
-        return d
-    
-    def __str__(self):
-        return json.dumps(self.asDict())
 
-    def __eq__(self, other):
-        return other.ID == self.ID
-
-    def __hash__(self):
-        return hash(self.ID)
-    
 class Node:
     EvalContext = None
-    def __init__(self, id, backingVariable = None, evalFunc = None, dictParams = {}, needtoFeed = {}):
+    def __init__(self, id, backingVariable = None, evalFunc = None, positionalArgs = [], dictParams = {}, needtoFeed = {}):
         if backingVariable is None and evalFunc is None:
             raise AssertionError('Node cannot be created without a backing function or backing variable')
         assert id is not None, 'Nodes need a unique ID'
 
         self.BackVariable = backingVariable
         self.EvalFunc = evalFunc
+        self.PositionalArgs = positionalArgs
         self.DictParams = dictParams
         self.NeedtoFeed = needtoFeed
         self.LastContext = {}
@@ -63,10 +36,16 @@ class Node:
             
         val = None
         if self.EvalFunc is not None:
+            args = []
+            for a in self.PositionalArgs:
+                if isinstance(a, Node):
+                    args.append(a.eval(session = session, feed_dict = feed_dict, newContext = False))
+                else:
+                    args.append(a)
             _feed_dict = {}
             for name, node in self.NeedtoFeed.items():
                 _feed_dict[name] = node.eval(session = session, feed_dict = feed_dict, newContext = False)
-            val = self.EvalFunc(**self.DictParams, **_feed_dict)
+            val = self.EvalFunc(*args, **self.DictParams, **_feed_dict)
         elif self.BackVariable is not None:
             if len(self.NeedtoFeed) == 0:
                 val = self.BackVariable.eval(session = session)
@@ -84,7 +63,7 @@ class Node:
     def __str__(self):
         return json.dumps(self.JSONRep)
 
-class TFFactory:
+class Factory:
     def __init__(self):
         self.DataLoader = DataLoader()
         self.FunctionMap = self.functionMap()
@@ -126,19 +105,38 @@ class TFFactory:
         if type in self.FunctionMap['ops']:
             func = self.FunctionMap['ops'][type]
             dictParams = {}
+            args = []
             childNeeds = {}
-            for name, obj in inputs.items():
-                if obj['type'] == 'ref':
-                    self.buildBranch(graph, obj['value'], allNodes)
-                    childNeeds[name] = allNodes[obj['value']]
+            # Parse the provided kwargs
+            for name, value in inputs.get('kwargs', {}).items():
+                v, isRef = GB.Deserialize(value)
+                if isRef:
+                    self.buildBranch(graph, v, allNodes)
+                    childNeeds[name] = allNodes[v]
                 else:
-                    dictParams[name] = obj['value']
+                    dictParams[name] = v
+            # Parse the provided args
+            for p in inputs.get('args', []):
+                v, isRef = GB.Deserialize(p)
+                if isRef:
+                    self.buildBranch(graph, v, allNodes)
+                    childNeeds[name] = allNodes[v]
+                    args.append(allNodes[v])
+                else:
+                    args.append(p['value'])
+
             placeholder = None
             if 'Shape' in inputs:
-                placeholder = tensorflow.placeholder(tensorflow.float32, shape = inputs['Shape']['value'], name = 'Placeholder_{}'.format(key))
+                placeholder = tensorflow.placeholder(tensorflow.float32, 
+                                                    shape = inputs['Shape']['value'], 
+                                                    name = 'Placeholder_{}'.format(key))
+            # Here the childNeeds is a dict of [param name] : node.
+            # This is because we don't actually call it recursively here, and still need to 
+            # actually call the function. 
             node = Node(key,
                         placeholder,
                         evalFunc = func,
+                        positionalParams = args,
                         dictParams = dictParams,
                         needtoFeed = childNeeds)
             if placeholder is not None:
@@ -147,21 +145,38 @@ class TFFactory:
         # Apply TF functions to get a reference to a tensor
         elif tfOp is not None:
             params = {}
-            childNeeds = {}  
-            for name, p in inputs.items():
-                if p['type'] == 'ref':
-                    nodeId = p['value']
-                    self.buildBranch(graph, nodeId, allNodes, childNeeds)
-                    params[name] = allNodes[nodeId].BackVariable
+            args = []
+            childNeeds = {}
+            # Parse kwargs
+            for name, p in inputs.get('kwargs', {}).items():
+                v, isRef = GB.Deserialize(p)
+                if isRef:
+                    self.buildBranch(graph, v, allNodes, childNeeds)
+                    params[name] = allNodes[v].BackVariable
                 else:
-                    params[name] = p['value']
-            print(params)
-            node = Node(key, tfOp(**params), needtoFeed = childNeeds)
-            needtofeed = {**needtofeed, **childNeeds}
+                    params[name] = v
+            # Parse args
+            for p in inputs.get('args', []):
+                v, isRef = GB.Deserialize(p)
+                if isRef:
+                    self.buildBranch(graph, v, allNodes, childNeeds)
+                    args.append(allNodes[v].BackVariable)
+                else:
+                    args.append(v)
+            # We don't need the name of a parameter here, because we have already called the function
+            # If there is something we need to feed, it has a tensor attached, and we will feed that in 
+            # at runtime. We just need to know which nodes need evaluation/replacing.
+            node = Node(key, tfOp(*args, **params), needtoFeed = childNeeds)
+            needtofeed.update(**childNeeds)
+            if tfOp == tensorflow.placeholder:
+                needtofeed.update({key : node})
+                # It can't eval itself without being fed. So hack that in, I guess?
+                # Will cause an infinite loop if things break. Wont if they dont!
+                node.NeedtoFeed.update({key : node}) 
 
         if node is None:
             raise AssertionError('Unsupported node type: {}'.format(type))
-        node.JSONRep = graphNode
+        node.JSONRep = {key : graphNode}
         allNodes[key] = node
         return
 
@@ -186,6 +201,7 @@ class TFFactory:
 
         return obj
 
+
     def placeHolder(self):
         raise TFFactoryException('Place holder variable was not fed during execution.')
 
@@ -199,3 +215,4 @@ class TFFactory:
 
         map['ops'] = ops
         return map
+
