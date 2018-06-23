@@ -79,8 +79,7 @@ def Deserialize(value):
         returns (the deserialized value, whether or not it is a node reference)
     """
     v = value['value']
-    t = value['type']
-    if t == 'ref':
+    if value['type'] == 'ref':
         return (v, True)
     if isinstance(v, Hashable):
         v = DESERIALIZE_MAP.get(v, v)

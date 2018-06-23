@@ -5,7 +5,7 @@ class DataLoader(object):
         self.FileCache = {}
         return
 
-    def sampleFile(self, filePath, nRows, delim = ',', caching = True):
+    def sampleFile(self, filePath, nRows, caching = True):
         data = []
         if caching:
             if filePath in self.FileCache:
@@ -16,7 +16,7 @@ class DataLoader(object):
                 self.FileCache[filePath] = []
         with open(filePath, 'r') as fin:
             for i, line in enumerate(fin):
-                row = line.strip('\n')
+                row = line.strip()
                 if caching:
                     self.FileCache[filePath].append(row)
                 if i < nRows:

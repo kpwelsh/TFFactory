@@ -201,7 +201,6 @@ class Factory:
 
         return obj
 
-
     def placeHolder(self):
         raise TFFactoryException('Place holder variable was not fed during execution.')
 
