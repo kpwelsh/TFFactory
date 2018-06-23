@@ -1,4 +1,4 @@
-from TFFactory import TFFactory, Node
+from TFFactory.TFFactory import Factory, Node
 import tensorflow as tf
 
 
