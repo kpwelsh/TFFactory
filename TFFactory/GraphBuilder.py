@@ -38,6 +38,14 @@ MOCKED_FUNCTIONS = [
     'tensorflow.layers.batch_normalization',
     'tensorflow.layers.dense',
     'tensorflow.distributions.Dirichlet',
+    'tensorflow.summary.tensor_summary',
+    'tensorflow.summary.scalar',
+    'tensorflow.summary.histogram',
+    'tensorflow.summary.image',
+    'tensorflow.summary.text',
+    'tensorflow.summary.audio',
+    'tensorflow.summary.merge',
+    'tensorflow.summary.merge_all'
 ]
 
 SERIALIZE_MAP = {
