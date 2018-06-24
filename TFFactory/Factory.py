@@ -26,6 +26,9 @@ class Node:
     def eval(self, session = None, feed_dict = {}, newContext = True):
         if self.ID in feed_dict:
             return feed_dict[self.ID]
+        elif self.ID in self.NeedtoFeed:
+            raise TFFactoryException('Node {} was not fed during execution.'.format(self.ID))
+
         if newContext:
             Node.EvalContext = np.random.random()
         if Node.EvalContext not in self.LastContext:
