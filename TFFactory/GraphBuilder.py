@@ -3,9 +3,15 @@ import sys
 import json
 from collections import defaultdict, Hashable
 from types import ModuleType
+from TFFactory.SupportedFunctions import *
 
 ID_COUNTER = defaultdict(int)
 CURRENT_GRAPH = {}
+
+PYTHON_FUNCTIONS = {
+    'fileSource' : lambda FilePath, NRows : readFile(FilePath, ',', NRows),
+    'parser' : splitFile
+}
 
 MOCKED_FUNCTIONS = [ 
     'tensorflow.placeholder',
