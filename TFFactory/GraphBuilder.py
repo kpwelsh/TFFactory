@@ -16,6 +16,7 @@ PYTHON_FUNCTIONS = {
 MOCKED_FUNCTIONS = [ 
     'tensorflow.placeholder',
     'tensorflow.Variable',
+    'tensorflow.abs',
     'tensorflow.add',
     'tensorflow.subtract',
     'tensorflow.multiply',
@@ -146,25 +147,34 @@ class JSONNode:
         }
         return d
     
+    def __neg__(self):
+        return multiply(-1, self)
+    def __pos__(self):
+        return abs(self)
+
     def __add__(self, other):
         return add(self, other)
     def __radd__(self, other):
         return add(other, self)
+    __iadd__ = __add__
 
     def __sub__(self, other):
         return subtract(self, other)
     def __rsub__(self, other):
         return subtract(other, self)
+    __isub__ = __sub__
 
     def __mul__(self, other):
         return multiply(self, other)
     def __rmul__(self, other):
         return multiply(other, self)
+    __imul__ = __mul__
 
-    def __div__(self, other):
+    def __truediv__(self, other):
         return divide(self, other)
-    def __rdiv__(self, other):
+    def __rtruediv__(self, other):
         return divide(other, self)
+    __itruediv__ = __truediv__
 
     def __str__(self):
         return json.dumps(self.asDict())
