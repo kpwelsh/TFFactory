@@ -24,6 +24,8 @@ MOCKED_FUNCTIONS = [
     'tensorflow.log',
     'tensorflow.tanh',
     'tensorflow.tensordot',
+    'tensorflow.square',
+    'tensorflow.sqrt',
     'tensorflow.reduce_sum',
     'tensorflow.reduce_mean',
     'tensorflow.shape',
