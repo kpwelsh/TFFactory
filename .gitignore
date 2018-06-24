@@ -1,0 +1,4 @@
+TFFactory.egg-info/*
+dist/*
+build/*
+TFFactory/__pycache__/*

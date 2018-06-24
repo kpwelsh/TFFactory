@@ -1,5 +1,5 @@
 import TFFactory.GraphBuilder as tff
-from TFFactory.TFFactory import Factory
+import TFFactory.Factory as factory
 import tensorflow as tf
 import json
 
@@ -9,12 +9,11 @@ if __name__ == '__main__':
     b = tff.Variable(initial_value = [4, 5, 6], name = 'b')
     n = n + b + placeHolder
 
-    factory = Factory()
     graph = json.dumps(tff.CURRENT_GRAPH)
     print(graph)
     graph = json.loads(graph)
     compiledGraph = factory.CreateTFGraph(graph)
-    
+
     with tf.Session() as sess:
         tf.global_variables_initializer().run(session = sess)
         for k,v in compiledGraph.items():

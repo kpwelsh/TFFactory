@@ -3,9 +3,15 @@ import sys
 import json
 from collections import defaultdict, Hashable
 from types import ModuleType
+from TFFactory.SupportedFunctions import *
 
 ID_COUNTER = defaultdict(int)
 CURRENT_GRAPH = {}
+
+PYTHON_FUNCTIONS = {
+    'fileSource' : lambda FilePath, NRows : readFile(FilePath, ',', NRows),
+    'parser' : splitFile
+}
 
 MOCKED_FUNCTIONS = [ 
     'tensorflow.placeholder',
@@ -79,8 +85,7 @@ def Deserialize(value):
         returns (the deserialized value, whether or not it is a node reference)
     """
     v = value['value']
-    t = value['type']
-    if t == 'ref':
+    if value['type'] == 'ref':
         return (v, True)
     if isinstance(v, Hashable):
         v = DESERIALIZE_MAP.get(v, v)
@@ -88,6 +93,7 @@ def Deserialize(value):
     return (v, False)
 
 def NewGraph():
+    global ID_COUNTER, CURRENT_GRAPH
     ID_COUNTER = defaultdict(int)
     CURRENT_GRAPH = {}
     return
