@@ -3,15 +3,58 @@ import sys
 import json
 from collections import defaultdict, Hashable
 from types import ModuleType
-from TFFactory.SupportedFunctions import *
+import TFFactory.SupportedFunctions as functions
+from TFFactory.Pointer import Pointer
+from .Utilities import findAndApply
 
 ID_COUNTER = defaultdict(int)
 CURRENT_GRAPH = {}
 
-PYTHON_FUNCTIONS = {
-    'fileSource' : lambda FilePath, NRows : readFile(FilePath, ',', NRows),
-    'parser' : splitFile
-}
+def NewGraph():
+    global ID_COUNTER, CURRENT_GRAPH
+    ID_COUNTER = defaultdict(int)
+    CURRENT_GRAPH = {}
+    return
+
+def _assignFunctions(this, functions, type):
+    for f in functions:
+        attrs = f.split('.')
+        curObj = this
+        for v in attrs[1:-1]:
+            if not hasattr(curObj, v):
+                setattr(curObj, v, ModuleType(v))
+            curObj = getattr(curObj, v)
+        setattr(curObj, attrs[-1], _mockFunction(f, type))
+
+def _mockFunction(funcName, type):
+    def MockedFunction(*args, **kwargs):
+        global ID_COUNTER, CURRENT_GRAPH
+        name = kwargs.get('name','Variable')
+        shape = kwargs.pop('_shape', None)
+        count = ID_COUNTER[name]
+        ID_COUNTER[name] += 1
+        if count > 0:
+            name = '{}_{}'.format(name, count)
+        n = JSONNode(name, funcName, list(args), kwargs, shape, type)
+        CURRENT_GRAPH.update({n.ID : n})
+        return n
+    return MockedFunction
+
+
+this = sys.modules[__name__]
+PYTHON_FUNCTIONS = [
+    'SupportedFunctions.fileSource',
+    'SupportedFunctions.parser',
+    'SupportedFunctions.testAdd'
+]
+_assignFunctions(this, PYTHON_FUNCTIONS, 'pythonNode')
+
+COMPOSITE_FUNCTIONS = [
+    'SupportedFunctions.AdamOptimizer',
+    'SupportedFunctions.MomentumOptimizer',
+    'SupportedFunctions.GradientDescentOptimizer'
+]
+_assignFunctions(this, COMPOSITE_FUNCTIONS, 'tensorflowNode')
 
 MOCKED_FUNCTIONS = [ 
     'tensorflow.placeholder',
@@ -47,116 +90,82 @@ MOCKED_FUNCTIONS = [
     'tensorflow.summary.merge',
     'tensorflow.summary.merge_all'
 ]
+_assignFunctions(this, MOCKED_FUNCTIONS, 'tensorflowNode')
 
-SERIALIZE_MAP = {
-    tensorflow.float16 : 'tensorflow.float16',
-    tensorflow.float32 : 'tensorflow.float32',
-    tensorflow.float64 : 'tensorflow.float64',
-    tensorflow.int8 : 'tensorflow.int8',
-    tensorflow.int16 : 'tensorflow.int16',
-    tensorflow.int32 : 'tensorflow.int32',
-    tensorflow.int64 : 'tensorflow.int64'
-}
-
-DESERIALIZE_MAP = {
-    'tensorflow.float16': tensorflow.float16,
-    'tensorflow.float32': tensorflow.float32,
-    'tensorflow.float64': tensorflow.float64,
-    'tensorflow.int8': tensorflow.int8,
-    'tensorflow.int16': tensorflow.int16,
-    'tensorflow.int32': tensorflow.int32,
-    'tensorflow.int64': tensorflow.int64 
-}
-
-
-def Serialize(value):
-    type = 'unknown'
-    if isinstance(value, JSONNode):
-        v = value.ID
-        type = 'ref'
-    elif isinstance(value, Hashable):
-        v = SERIALIZE_MAP.get(value, value)
-    else:
-        v = value
-    
-    d = {
-        'value' : v,
-        'type' : type
+class Encoder(json.JSONEncoder):
+    SERIALIZE_MAP = {
+        tensorflow.float16 : 'tensorflow.float16',
+        tensorflow.float32 : 'tensorflow.float32',
+        tensorflow.float64 : 'tensorflow.float64',
+        tensorflow.int8 : 'tensorflow.int8',
+        tensorflow.int16 : 'tensorflow.int16',
+        tensorflow.int32 : 'tensorflow.int32',
+        tensorflow.int64 : 'tensorflow.int64'
     }
-    
-    return d
+    def default(self, obj):
+        if isinstance(obj, JSONNode):
+            return {
+                '_type' : obj.Type,
+                'funcName' : obj.FuncName,
+                'inputs' : obj.Inputs
+            }
+        elif isinstance(obj, Pointer):
+            return {
+                'value' : obj.Ref,
+                '_type' : 'pointer'
+            }
+        elif isinstance(obj, Hashable) and obj in Encoder.SERIALIZE_MAP:
+            return {
+                'value' : Encoder.SERIALIZE_MAP[obj],
+                '_type' : 'tensorflow'
+            }
 
-def Deserialize(value):
-    """
-        Given the value object with format :
-        value = {
-            'value' : <>,
-            'type' : <>
-        }
+        return json.JSONEncoder.default(self, obj)
 
-        returns (the deserialized value, whether or not it is a node reference)
-    """
-    v = value['value']
-    if value['type'] == 'ref':
-        return (v, True)
-    if isinstance(v, Hashable):
-        v = DESERIALIZE_MAP.get(v, v)
+class Decoder(json.JSONDecoder):
+    DESERIALIZE_MAP = {
+        'tensorflow.float16': tensorflow.float16,
+        'tensorflow.float32': tensorflow.float32,
+        'tensorflow.float64': tensorflow.float64,
+        'tensorflow.int8': tensorflow.int8,
+        'tensorflow.int16': tensorflow.int16,
+        'tensorflow.int32': tensorflow.int32,
+        'tensorflow.int64': tensorflow.int64 
+    }
+    def __init__(self, *args, **kwargs):
+        json.JSONDecoder.__init__(self, object_hook=self.object_hook, *args, **kwargs)
+        return
 
-    return (v, False)
-
-def NewGraph():
-    global ID_COUNTER, CURRENT_GRAPH
-    ID_COUNTER = defaultdict(int)
-    CURRENT_GRAPH = {}
-    return
-
-def MockFunction(funcName):
-    def MockedFunction(*args, **kwargs):
-        global ID_COUNTER, CURRENT_GRAPH
-        name = kwargs.get('name','Variable')
-        count = ID_COUNTER[name]
-        ID_COUNTER[name] += 1
-        if count > 0:
-            name = '{}_{}'.format(name, count)
-        n = JSONNode(name, funcName, args, kwargs)
-        CURRENT_GRAPH.update(n.asDict())
-        return n
-    return MockedFunction
-
-this = sys.modules[__name__]
-for f in MOCKED_FUNCTIONS:
-    attrs = f.split('.')
-    curObj = this
-    for v in attrs[1:-1]:
-        if not hasattr(curObj, v):
-            setattr(curObj, v, ModuleType(v))
-        curObj = getattr(curObj, v)
-    setattr(curObj, attrs[-1], MockFunction(f))
-
+    def object_hook(self, obj):
+        if '_type' in obj:
+            t = obj['_type']
+            if t == 'tensorflow' :
+                return Decoder.DESERIALIZE_MAP[obj['value']]
+            if t == 'pointer':
+                return Pointer(obj['value'])
+        return obj
 
 class JSONNode:
-    def __init__(self, id, type, args, kwargs):
+    def __init__(self, id, funcName, args, kwargs, shape, type):
         self.ID = str(id)
-        self.type = str(type)
+        self.FuncName = funcName
+        self.Type = str(type)
         self.Inputs = {
-            'args' : [],
-            'kwargs' : {}
+            'args' : args,
+            'kwargs' : kwargs,
+            '_shape' : shape
         }
-        for name, value in kwargs.items():
-            self.Inputs['kwargs'][name] = Serialize(value)
-        self.Inputs['args'] = []
-        for value in args:
-            self.Inputs['args'].append(Serialize(value))
+        self.Inputs = findAndApply(self.Inputs, self._shouldBePointer, self._replaceWithPointer)
+
         return
     
-    def asDict(self):
-        d = {
-            self.ID : {
-                'type' : self.type,
-                'inputs' : self.Inputs
-            }
-        }
-        return d
+    @staticmethod
+    def _shouldBePointer(obj):
+        return isinstance(obj, JSONNode)
+
+    @staticmethod
+    def _replaceWithPointer(obj):
+        return Pointer(obj.ID)
     
     def __neg__(self):
         return multiply(-1, self)
@@ -186,9 +195,6 @@ class JSONNode:
     def __rtruediv__(self, other):
         return divide(other, self)
     __itruediv__ = __truediv__
-
-    def __str__(self):
-        return json.dumps(self.asDict())
 
     def __eq__(self, other):
         return other.ID == self.ID

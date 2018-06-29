@@ -9,3 +9,21 @@ def splitFile(Source, SegmentDelimeter, DataDelimeter, SegmentIndex, Shape):
     for row in Source:
         data.append(list(map(float, row.split(SegmentDelimeter)[SegmentIndex].split(DataDelimeter))))
     return np.array(data).reshape((*Shape))
+
+def testAdd(a, b):
+    return [a + b]
+
+
+# TF ones
+import tensorflow
+def AdamOptimizer(loss, learningRate):
+    optimizer = tensorflow.train.AdamOptimizer(learningRate)
+    return optimizer.minimize(loss)
+
+def MomentumOptimizer(loss, learningRate, momentum):
+    optimizer = tensorflow.train.MomentumOptimizer(learningRate, momentum = momentum)
+    return optimizer.minimize(loss)
+
+def GradientDescentOptimizer(loss, learningRate):
+    optimizer = tensorflow.train.GradientDescentOptimizer(learningRate)
+    return optimizer.minimize(loss)
