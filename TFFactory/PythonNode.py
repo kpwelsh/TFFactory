@@ -22,6 +22,7 @@ class PythonNode(Node):
         }
         self.NeedToFeed = needToFeed if needToFeed is not None else {}
         self.PointerMap = pointerMap if pointerMap is not None else {}
+        super().__init__(id)
 
     def _eval(self, session=None, feed_dict={}, newContext=True):
         pointers = PythonNode.Decoder.decode(

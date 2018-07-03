@@ -10,11 +10,13 @@ from .Utilities import findAndApply
 ID_COUNTER = defaultdict(int)
 CURRENT_GRAPH = {}
 
+
 def NewGraph():
     global ID_COUNTER, CURRENT_GRAPH
     ID_COUNTER = defaultdict(int)
     CURRENT_GRAPH = {}
     return
+
 
 def _assignFunctions(this, functions, type):
     for f in functions:
@@ -26,17 +28,18 @@ def _assignFunctions(this, functions, type):
             curObj = getattr(curObj, v)
         setattr(curObj, attrs[-1], _mockFunction(f, type))
 
+
 def _mockFunction(funcName, type):
     def MockedFunction(*args, **kwargs):
         global ID_COUNTER, CURRENT_GRAPH
-        name = kwargs.get('name','Variable')
+        name = kwargs.get('name', 'Variable')
         shape = kwargs.pop('_shape', None)
         count = ID_COUNTER[name]
         ID_COUNTER[name] += 1
         if count > 0:
             name = '{}_{}'.format(name, count)
         n = JSONNode(name, funcName, list(args), kwargs, shape, type)
-        CURRENT_GRAPH.update({n.ID : n})
+        CURRENT_GRAPH.update({n.ID: n})
         return n
     return MockedFunction
 
@@ -52,11 +55,13 @@ _assignFunctions(this, PYTHON_FUNCTIONS, 'pythonNode')
 COMPOSITE_FUNCTIONS = [
     'SupportedFunctions.AdamOptimizer',
     'SupportedFunctions.MomentumOptimizer',
-    'SupportedFunctions.GradientDescentOptimizer'
+    'SupportedFunctions.GradientDescentOptimizer',
+    'SupportedFunctions.SampleDirichlet',
+    'SupportedFunctions.GetItem'
 ]
 _assignFunctions(this, COMPOSITE_FUNCTIONS, 'tensorflowNode')
 
-MOCKED_FUNCTIONS = [ 
+MOCKED_FUNCTIONS = [
     'tensorflow.placeholder',
     'tensorflow.Variable',
     'tensorflow.abs',
@@ -92,35 +97,43 @@ MOCKED_FUNCTIONS = [
 ]
 _assignFunctions(this, MOCKED_FUNCTIONS, 'tensorflowNode')
 
+
 class Encoder(json.JSONEncoder):
     SERIALIZE_MAP = {
-        tensorflow.float16 : 'tensorflow.float16',
-        tensorflow.float32 : 'tensorflow.float32',
-        tensorflow.float64 : 'tensorflow.float64',
-        tensorflow.int8 : 'tensorflow.int8',
-        tensorflow.int16 : 'tensorflow.int16',
-        tensorflow.int32 : 'tensorflow.int32',
-        tensorflow.int64 : 'tensorflow.int64'
+        tensorflow.float16: 'tensorflow.float16',
+        tensorflow.float32: 'tensorflow.float32',
+        tensorflow.float64: 'tensorflow.float64',
+        tensorflow.int8: 'tensorflow.int8',
+        tensorflow.int16: 'tensorflow.int16',
+        tensorflow.int32: 'tensorflow.int32',
+        tensorflow.int64: 'tensorflow.int64'
     }
+
     def default(self, obj):
         if isinstance(obj, JSONNode):
             return {
-                '_type' : obj.Type,
-                'funcName' : obj.FuncName,
-                'inputs' : obj.Inputs
+                '_type': obj.Type,
+                'funcName': obj.FuncName,
+                'inputs': obj.Inputs
             }
         elif isinstance(obj, Pointer):
             return {
-                'value' : obj.Ref,
-                '_type' : 'pointer'
+                'value': obj.Ref,
+                '_type': 'pointer'
+            }
+        elif isinstance(obj, slice):
+            return {
+                'value': [obj.start, obj.stop, obj.step],
+                '_type': 'slice'
             }
         elif isinstance(obj, Hashable) and obj in Encoder.SERIALIZE_MAP:
             return {
-                'value' : Encoder.SERIALIZE_MAP[obj],
-                '_type' : 'tensorflow'
+                'value': Encoder.SERIALIZE_MAP[obj],
+                '_type': 'tensorflow'
             }
 
         return json.JSONEncoder.default(self, obj)
+
 
 class Decoder(json.JSONDecoder):
     DESERIALIZE_MAP = {
@@ -130,20 +143,25 @@ class Decoder(json.JSONDecoder):
         'tensorflow.int8': tensorflow.int8,
         'tensorflow.int16': tensorflow.int16,
         'tensorflow.int32': tensorflow.int32,
-        'tensorflow.int64': tensorflow.int64 
+        'tensorflow.int64': tensorflow.int64
     }
+
     def __init__(self, *args, **kwargs):
-        json.JSONDecoder.__init__(self, object_hook=self.object_hook, *args, **kwargs)
+        json.JSONDecoder.__init__(
+            self, object_hook=self.object_hook, *args, **kwargs)
         return
 
     def object_hook(self, obj):
         if '_type' in obj:
             t = obj['_type']
-            if t == 'tensorflow' :
+            if t == 'tensorflow':
                 return Decoder.DESERIALIZE_MAP[obj['value']]
-            if t == 'pointer':
+            elif t == 'pointer':
                 return Pointer(obj['value'])
+            elif t == 'slice':
+                return slice(*obj['value'])
         return obj
+
 
 class JSONNode:
     def __init__(self, id, funcName, args, kwargs, shape, type):
@@ -151,14 +169,15 @@ class JSONNode:
         self.FuncName = funcName
         self.Type = str(type)
         self.Inputs = {
-            'args' : args,
-            'kwargs' : kwargs,
-            '_shape' : shape
+            'args': args,
+            'kwargs': kwargs,
+            '_shape': shape
         }
-        self.Inputs = findAndApply(self.Inputs, self._shouldBePointer, self._replaceWithPointer)
+        self.Inputs = findAndApply(
+            self.Inputs, self._shouldBePointer, self._replaceWithPointer)
 
         return
-    
+
     @staticmethod
     def _shouldBePointer(obj):
         return isinstance(obj, JSONNode)
@@ -166,32 +185,40 @@ class JSONNode:
     @staticmethod
     def _replaceWithPointer(obj):
         return Pointer(obj.ID)
-    
+
+    def __getitem__(self, key):
+        return GetItem(self, key)
+
     def __neg__(self):
         return multiply(-1, self)
+
     def __pos__(self):
         return abs(self)
 
     def __add__(self, other):
         return add(self, other)
+
     def __radd__(self, other):
         return add(other, self)
     __iadd__ = __add__
 
     def __sub__(self, other):
         return subtract(self, other)
+
     def __rsub__(self, other):
         return subtract(other, self)
     __isub__ = __sub__
 
     def __mul__(self, other):
         return multiply(self, other)
+
     def __rmul__(self, other):
         return multiply(other, self)
     __imul__ = __mul__
 
     def __truediv__(self, other):
         return divide(self, other)
+
     def __rtruediv__(self, other):
         return divide(other, self)
     __itruediv__ = __truediv__

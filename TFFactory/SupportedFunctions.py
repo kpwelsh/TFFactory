@@ -38,3 +38,15 @@ def MomentumOptimizer(loss, learningRate, momentum):
 def GradientDescentOptimizer(loss, learningRate):
     optimizer = tensorflow.train.GradientDescentOptimizer(learningRate)
     return optimizer.minimize(loss)
+
+
+def SampleDirichlet(concentration, sampleShape, validateArgs=False, allowNanStats=True, **kwargs):
+    dist = tensorflow.distributions.Dirichlet(concentration,
+                                              validate_args=validateArgs,
+                                              allow_nan_stats=allowNanStats)
+
+    return dist.sample(sampleShape, **kwargs)
+
+
+def GetItem(tensor, key):
+    return tensor[key]
