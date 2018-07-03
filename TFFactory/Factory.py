@@ -12,8 +12,7 @@ from functools import partial
 
 def CreateTFGraph(graph):
     nodes = {}
-    for key, node in graph.items():
-        print(node)
+    for key, _ in graph.items():
         __buildBranch(graph, key, nodes)
 
     return nodes
@@ -104,7 +103,6 @@ def __buildTFNode(key, graph, allNodes):
                                 graph = graph,
                                 allNodes = allNodes))
 
-    print('AllArgs: {}'.format(allArgs))
     args = allArgs['args']
     kwargs = allArgs['kwargs']
     for d in dependencies:
