@@ -32,12 +32,12 @@ def _assignFunctions(this, functions, type):
 def _mockFunction(funcName, type):
     def MockedFunction(*args, **kwargs):
         global ID_COUNTER, CURRENT_GRAPH
-        name = kwargs.get('name', 'Variable')
+        name = kwargs.get('name', 'unnamed')
         shape = kwargs.pop('_shape', None)
         count = ID_COUNTER[name]
         ID_COUNTER[name] += 1
         if count > 0:
-            name = '{}_{}'.format(name, count)
+            name = '{}:{}'.format(name, count)
         n = JSONNode(name, funcName, list(args), kwargs, shape, type)
         CURRENT_GRAPH.update({n.ID: n})
         return n
@@ -190,7 +190,7 @@ class JSONNode:
         return GetItem(self, key)
 
     def __neg__(self):
-        return multiply(-1, self)
+        return multiply(-1.0, self)
 
     def __pos__(self):
         return abs(self)
