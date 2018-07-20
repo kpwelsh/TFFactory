@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="TFFactory",
-    version="0.0.1",
+    version="0.1.5002",
     author="Kevin Welsh",
     author_email="kevinwelsh132@gmail.com",
     description="A mock tensorflow package that constructs JSON objects instead of tensors.",

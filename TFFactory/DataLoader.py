@@ -1,11 +1,12 @@
 import numpy as np
 
+
 class DataLoader(object):
     def __init__(self):
         self.FileCache = {}
         return
 
-    def sampleFile(self, filePath, nRows, caching = True):
+    def sampleFile(self, filePath, nRows, caching=True):
         data = []
         if caching:
             if filePath in self.FileCache:
@@ -27,5 +28,3 @@ class DataLoader(object):
                         data[r] = row
         self.FileCache[filePath] = data
         return data
-
-
